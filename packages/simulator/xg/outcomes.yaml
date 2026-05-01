@@ -1,0 +1,34 @@
+# PA outcome taxonomy — source of truth for the stateball pipeline.
+# All values are MLB Statcast 'events' column values from Baseball Savant.
+#
+# Python: loaded by xg/config.py
+# dbt: mirrored in orchestration/macros/outcomes.sql (validated by test)
+
+classes:
+  - double
+  - double_play
+  - field_out
+  - fielders_choice
+  - fielders_choice_out
+  - force_out
+  - grounded_into_double_play
+  - hit_by_pitch
+  - home_run
+  - sac_bunt
+  - sac_fly
+  - single
+  - strikeout
+  - strikeout_double_play
+  - triple
+  - walk
+
+excluded:
+  - catcher_interf        # too rare for stable learning
+  - ejection
+  - field_error           # unpredictable — no defensive features
+  - game_advisory
+  - intent_walk           # managerial decision — no next-batter features
+  - sac_bunt_double_play  # too rare
+  - sac_fly_double_play   # too rare
+  - triple_play           # too rare
+  - truncated_pa

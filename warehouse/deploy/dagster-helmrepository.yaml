@@ -1,0 +1,12 @@
+# ==============================================================================
+# Dagster Helm Repository
+# ==============================================================================
+
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: dagster
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://dagster-io.github.io/helm

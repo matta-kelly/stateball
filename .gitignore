@@ -1,0 +1,51 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# dlt
+.dlt/
+
+# dbt
+warehouse/orchestration/target/
+warehouse/orchestration/logs/
+
+# Environment
+.env
+
+# Training experiments (model artifacts)
+packages/simulator/xg/experiments/
+packages/simulator/xg/sweep_summary.json
+
+# Local training configs (may reference prod credentials)
+packages/simulator/xg/configs/local*.toml
+
+# Node
+node_modules/
+
+# Frontend build output
+liveball/frontend/dist/
+*.tsbuildinfo
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Dagster
+.tmp_dagster_home_*/
+
+# Data files
+*.parquet
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+liveball/data_feed.db

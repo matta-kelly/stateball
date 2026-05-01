@@ -1,0 +1,49 @@
+version: "3"
+
+dotenv: [".env"]
+
+tasks:
+  dev:
+    desc: Start full stack (Redis + frontend + backend + data feed + sim worker)
+    deps: [dev:redis, dev:frontend, dev:backend, dev:feed-sim, dev:sim]
+
+  dev:frontend:
+    desc: Start Vite dev server
+    dir: "{{.ROOT_DIR}}/frontend"
+    cmd: npm run dev
+
+  dev:backend:
+    desc: Start FastAPI with hot reload
+    dir: "{{.ROOT_DIR}}"
+    env:
+      DATA_FEED_URL: http://localhost:8001
+    cmd: uv run python -m uvicorn backend.main:app --reload --port 8000
+
+  dev:feed:
+    desc: Start data feed (schedule + live trackers + SSE)
+    dir: "{{.ROOT_DIR}}"
+    cmd: uv run python -m data_feed --backend-url http://localhost:8000 --poll-interval 30
+
+  dev:feed-sim:
+    desc: Start data feed with sim dispatch enabled
+    dir: "{{.ROOT_DIR}}"
+    cmd: uv run python -m data_feed --backend-url http://localhost:8000 --poll-interval 30 --sim
+
+  dev:redis:
+    desc: Start Redis via podman (port 6379)
+    cmd: podman run --rm --replace --name stateball-redis -p 6379:6379 docker.io/redis:7-alpine
+
+  dev:sim:
+    desc: Start sim worker (consumes Redis queue, runs sims)
+    dir: "{{.ROOT_DIR}}"
+    cmd: uv run python -m data_feed.sim.standalone --workers 2 --estimator truncated_mc
+
+  build:
+    desc: Build frontend for production
+    dir: "{{.ROOT_DIR}}/frontend"
+    cmd: npm run build
+
+  typecheck:
+    desc: Run TypeScript type checking
+    dir: "{{.ROOT_DIR}}/frontend"
+    cmd: npx tsc --noEmit

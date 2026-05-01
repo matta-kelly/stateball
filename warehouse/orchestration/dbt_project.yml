@@ -1,0 +1,16 @@
+name: stateball
+version: "0.1.0"
+profile: stateball
+
+model-paths: ["dag/processed", "dag/intermediate", "dag/reference", "dag/features", "dag/analysis"]
+seed-paths: ["dag/seeds"]
+target-path: "target"
+clean-targets: ["target"]
+
+models:
+  stateball:
+    +database: lakehouse
+
+seeds:
+  stateball:
+    +database: lakehouse

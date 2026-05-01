@@ -1,0 +1,19 @@
+# ==============================================================================
+# stateball Deployment
+# ==============================================================================
+# Deploy via Flux (production cluster)
+# Flux watches this directory via GitRepository + Kustomization in dazoo
+# ==============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - externalsecret.yaml
+  - ducklake-db.yaml
+  - ducklake-db-nodeport.yaml
+  - dagster-db.yaml
+  - minio.yaml
+  - minio-nodeport.yaml
+  - dagster-helmrepository.yaml
+  - dagster-helmrelease.yaml

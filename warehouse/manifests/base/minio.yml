@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  containers:
+    - name: minio
+      image: docker.io/minio/minio
+      args:
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+      env:
+        - name: MINIO_ROOT_USER
+          value: minioadmin
+        - name: MINIO_ROOT_PASSWORD
+          value: minioadmin
+      ports:
+        - containerPort: 9000
+          hostPort: 9000
+        - containerPort: 9001
+          hostPort: 9001
+      volumeMounts:
+        - name: minio-data
+          mountPath: /data
+  volumes:
+    - name: minio-data
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: docker.io/minio/mc
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for minio..."
+              until mc alias set local http://minio:9000 minioadmin minioadmin; do
+                sleep 2
+              done
+              mc mb local/landing --ignore-existing
+              echo "Bucket created"

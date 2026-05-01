@@ -1,0 +1,24 @@
+# ==============================================================================
+# DuckLake PostgreSQL — Mesh Exposure (NodePort)
+# ==============================================================================
+# Exposes the DuckLake catalog Postgres on the Headscale mesh via NodePort.
+# Accessible at <node-mesh-ip>:30432 from any mesh client.
+# prod cluster: <db-host>:5432
+# Used for local development against the prod catalog.
+# ==============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ducklake-db-mesh
+  namespace: stateball
+spec:
+  type: NodePort
+  selector:
+    cnpg.io/cluster: ducklake-db
+    cnpg.io/instanceRole: primary
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30432
+      protocol: TCP

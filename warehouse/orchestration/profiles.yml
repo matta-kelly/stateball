@@ -1,0 +1,56 @@
+stateball:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ":memory:"
+      threads: 4
+      extensions:
+        - ducklake
+        - httpfs
+      config_options:
+        temp_directory: '/tmp/duckdb_swap'
+      settings:
+        memory_limit: '8GB'
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY_ID', 'minioadmin') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_ACCESS_KEY', 'minioadmin') }}"
+        s3_endpoint: "{{ env_var('S3_ENDPOINT', 'localhost:9000') | replace('https://', '') | replace('http://', '') }}"
+        s3_use_ssl: false
+        s3_url_style: path
+        http_retries: 10
+        http_retry_wait_ms: 1000
+        http_retry_backoff: 2
+        http_timeout: 120
+      attach:
+        - path: "ducklake:postgres:host={{ env_var('DUCKLAKE_DB_HOST', 'localhost') }} port=5432 dbname=ducklake user=ducklake password={{ env_var('DUCKLAKE_DB_PASSWORD', '') }}"
+          alias: lakehouse
+          options:
+            DATA_PATH: "s3://{{ env_var('S3_BUCKET', 'dazoo') }}/stateball/"
+            METADATA_SCHEMA: "lakehouse"
+
+    prod:
+      type: duckdb
+      path: ":memory:"
+      threads: 4
+      extensions:
+        - ducklake
+        - httpfs
+      config_options:
+        temp_directory: '/tmp/duckdb_swap'
+      settings:
+        memory_limit: '8GB'
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY_ID', '') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_ACCESS_KEY', '') }}"
+        s3_endpoint: "{{ env_var('S3_ENDPOINT', '') | replace('https://', '') | replace('http://', '') }}"
+        s3_use_ssl: "{{ env_var('S3_USE_SSL', 'false') }}"
+        s3_url_style: path
+        http_retries: 10
+        http_retry_wait_ms: 1000
+        http_retry_backoff: 2
+        http_timeout: 120
+      attach:
+        - path: "ducklake:postgres:host={{ env_var('DUCKLAKE_DB_HOST') }} port=5432 dbname=ducklake user=ducklake password={{ env_var('DUCKLAKE_DB_PASSWORD', env_var('password', '')) }}"
+          alias: lakehouse
+          options:
+            DATA_PATH: "s3://{{ env_var('S3_BUCKET', 'dazoo') }}/stateball/"
+            METADATA_SCHEMA: "lakehouse"

@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: liveball
+  namespace: stateball
+  labels:
+    app: liveball
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: liveball
+  template:
+    metadata:
+      labels:
+        app: liveball
+    spec:
+      containers:
+        - name: liveball
+          image: ghcr.io/<your-org>/liveball:sha-6e7a05f
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: S3_ENDPOINT
+              value: "minio.stateball.svc.cluster.local:9000"
+            - name: S3_BUCKET
+              value: "dazoo"
+            - name: S3_USE_SSL
+              value: "false"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_access_key_id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_secret_access_key
+            - name: DUCKLAKE_DB_HOST
+              value: "ducklake-db-rw.stateball.svc.cluster.local"
+            - name: DUCKLAKE_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: user
+            - name: DUCKLAKE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: password
+            - name: DUCKLAKE_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: dbname
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: liveball-auth
+                  key: jwt_secret
+            - name: JWT_COOKIE_SECURE
+              value: "true"
+            - name: REDIS_URL
+              value: "redis://liveball-redis-0.liveball-redis.stateball.svc.cluster.local:6379/0"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30

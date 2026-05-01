@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: liveball-data-feed
+  namespace: stateball
+  labels:
+    app: liveball-data-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: liveball-data-feed
+  template:
+    metadata:
+      labels:
+        app: liveball-data-feed
+    spec:
+      containers:
+        - name: data-feed
+          image: ghcr.io/<your-org>/liveball:sha-6e7a05f
+          command: [".venv/bin/python", "-m", "data_feed", "--sim"]
+          ports:
+            - containerPort: 8001
+              name: http
+          env:
+            - name: BACKEND_URL
+              value: "http://liveball"
+            - name: S3_ENDPOINT
+              value: "http://minio.stateball.svc.cluster.local:9000"
+            - name: S3_BUCKET
+              value: "dazoo"
+            - name: S3_USE_SSL
+              value: "false"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_access_key_id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_secret_access_key
+            - name: DUCKLAKE_DB_HOST
+              value: "ducklake-db-rw.stateball.svc.cluster.local"
+            - name: DUCKLAKE_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: user
+            - name: DUCKLAKE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: password
+            - name: DUCKLAKE_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: dbname
+            - name: REDIS_URL
+              value: "redis://liveball-redis-0.liveball-redis.stateball.svc.cluster.local:6379/0"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi

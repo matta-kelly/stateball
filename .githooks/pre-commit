@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Pre-commit hook: mirrors CI validate checks locally.
+# Install: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+echo "pre-commit: ruff check..."
+uvx ruff@0.15.5 check . || {
+    echo "pre-commit: ruff failed. Fix lint errors before committing."
+    exit 1
+}
+
+echo "pre-commit: py_compile..."
+.venv/bin/python -m py_compile \
+    warehouse/orchestration/definitions.py warehouse/orchestration/resources.py \
+    warehouse/orchestration/assets.py warehouse/orchestration/lib.py \
+    packages/simulator/xg/config.py packages/simulator/xg/data.py \
+    packages/simulator/xg/evaluate.py packages/simulator/xg/train.py \
+    packages/simulator/xg/sweep.py packages/simulator/xg/validate.py || {
+    echo "pre-commit: py_compile failed. Fix syntax errors before committing."
+    exit 1
+}
+
+echo "pre-commit: all checks passed."

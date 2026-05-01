@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: landing
+    database: lakehouse
+    schema: landing
+    tables:
+      - name: boxscores
+      - name: events
+      - name: games
+      - name: gumbo_events
+      - name: players

@@ -1,0 +1,8 @@
+[project]
+name = "stateball"
+version = "0.1.0"
+description = "MLB state-based analytics pipeline for Markov chain win probability modeling"
+requires-python = ">=3.12,<3.14"
+
+[tool.uv.workspace]
+members = ["packages/simulator", "warehouse", "liveball"]

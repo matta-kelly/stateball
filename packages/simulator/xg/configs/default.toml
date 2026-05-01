@@ -1,0 +1,62 @@
+# XGBoost training experiment — default configuration
+#
+# Config-driven. Copy this file to create new experiments.
+#
+# Usage:
+#   .venv/bin/python -m xg.train                          # uses this file
+#   .venv/bin/python -m xg.train xg/configs/custom.toml   # uses custom
+
+[data]
+db_path = "stateball.duckdb"
+table = "main.feat_mlb__vectors"
+# seasons = [2022, 2023, 2024]            # filter by season year(s)
+# date_range = ["2023-04-01", "2024-09-30"]  # [start, end] inclusive
+# min_game_date = "2023-04-01"            # just a floor
+max_games = 5000                          # ~365K PAs across all seasons (fast iteration)
+
+[features]
+mode = "auto"                             # "auto" discovers features from table columns
+# mode = "explicit"                       # use blocks for controlled experiments
+# blocks = ["game_state", "batter_profile", "pitcher_profile"]
+# add = ["park_factor_hr"]                # extra columns (explicit mode only)
+# exclude = ["bat_career_babip"]          # drop specific features (both modes)
+
+[sampling]
+enabled = true
+seed = 42
+
+[split]
+test_fraction = 0.20
+calibrate_fraction = 0.25
+seed = 42
+
+[xgboost]
+objective = "multi:softprob"
+eval_metric = "mlogloss"
+tree_method = "hist"
+grow_policy = "lossguide"
+max_depth = 5
+max_leaves = 16
+max_bin = 128                             # half default, negligible quality impact
+min_child_weight = 100
+subsample = 0.7
+colsample_bytree = 1.0
+learning_rate = 0.15                      # higher LR → fewer trees → faster convergence
+n_estimators = 1000
+reg_lambda = 10
+reg_alpha = 1
+max_delta_step = 1
+random_state = 42
+n_jobs = -1
+
+[training]
+early_stopping_rounds = 20               # tighter — LR 0.15 converges fast
+early_stopping_validation_fraction = 0.10
+
+[calibration]
+method = "isotonic"
+cv = 5
+
+[output]
+dir = "xg/experiments"
+# name = "baseline"                       # optional suffix for run directory

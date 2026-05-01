@@ -1,0 +1,145 @@
+# ==============================================================================
+# MinIO — S3-compatible object storage for DuckLake data + artifacts
+# ==============================================================================
+# Credentials from upstream secret store via ESO (stateball-minio item).
+# Init job creates the 'dazoo' bucket on first deploy.
+# ==============================================================================
+
+# --- PVC (NVMe-backed persistent storage) -----------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: stateball
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# --- Deployment --------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: stateball
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: root_user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: root_password
+          ports:
+            - containerPort: 9000
+              name: api
+            - containerPort: 9001
+              name: console
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+
+---
+# --- Service -----------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: stateball
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+
+---
+# --- Init Job (create bucket) ------------------------------------------------
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: stateball
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: root_user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: root_password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for MinIO..."
+              until mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+                sleep 2
+              done
+              mc mb local/dazoo --ignore-existing
+              echo "Bucket 'dazoo' ready"

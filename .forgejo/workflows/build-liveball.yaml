@@ -1,0 +1,74 @@
+name: Build Liveball
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'liveball/**'
+      - 'packages/simulator/**'
+      - 'packages/execution/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'liveball/**'
+      - 'packages/simulator/**'
+      - 'packages/execution/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: <your-org>/liveball
+
+jobs:
+  build:
+    runs-on: lotus-lake-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to registry
+        if: gitea.event_name != 'pull_request'
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ gitea.actor }} --password-stdin
+
+      - name: Build image
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          docker build \
+            --platform linux/amd64 \
+            --cache-from ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -f liveball/Dockerfile \
+            .
+
+      - name: Push image
+        if: gitea.event_name != 'pull_request'
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: [build]
+    runs-on: lotus-lake-ci
+    if: gitea.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update image tag
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          TAG="sha-${SHORT_SHA}"
+          sed -i "s|liveball:sha-[a-f0-9]*|liveball:${TAG}|" liveball/deploy/deployment.yaml liveball/deploy/data-feed-deployment.yaml liveball/deploy/sim-worker-deployment.yaml liveball/deploy/trading-engine-deployment.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "forgejo-actions[bot]"
+          git config user.email "ci@example.com"
+          git add liveball/deploy/
+          git diff --cached --quiet || git commit -m "ci: update liveball image tag to sha-$(echo '${{ gitea.sha }}' | cut -c1-7)"
+          git pull --rebase
+          git push

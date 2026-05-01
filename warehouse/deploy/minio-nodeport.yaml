@@ -1,0 +1,23 @@
+# ==============================================================================
+# MinIO — Mesh Exposure (NodePort)
+# ==============================================================================
+# Exposes MinIO S3 API on the Headscale mesh via NodePort.
+# Accessible at <node-mesh-ip>:30900 from any mesh client.
+# prod cluster: <minio-host>:9000
+# Used for local DuckLake queries and dev access to S3.
+# ==============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-mesh
+  namespace: stateball
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - port: 9000
+      targetPort: 9000
+      nodePort: 30900
+      protocol: TCP

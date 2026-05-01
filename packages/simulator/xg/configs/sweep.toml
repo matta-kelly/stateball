@@ -1,0 +1,80 @@
+# XGBoost sweep — unified sim + live
+#
+# When a feature manifest is assigned to the test slot, sweep uses
+# manifest.features for the live model and manifest.sim_features for sim.
+# Feature config below is ignored when a manifest is active.
+#
+# Usage:
+#   .venv/bin/python -m xg.sweep xg/configs/sweep.toml
+#   .venv/bin/python -m xg.sweep xg/configs/sweep.toml --final
+
+[data]
+db_path = "stateball.duckdb"
+table = "main.feat_mlb__vectors"
+
+[features]
+mode = "explicit"
+blocks = [
+    "game_state", "batter_profile", "pitcher_profile",
+    "batter_arsenal", "batter_batted_ball", "batter_contact_quality",
+    "batter_discipline", "pitcher_arsenal",
+]
+
+[sampling]
+enabled = true
+seed = 42
+
+[split]
+test_fraction = 0.20
+calibrate_fraction = 0.25
+seed = 42
+
+[xgboost]
+objective = "multi:softprob"
+eval_metric = "mlogloss"
+tree_method = "hist"
+grow_policy = "lossguide"
+max_depth = 0
+max_bin = 128
+min_child_weight = 100
+subsample = 0.7
+colsample_bytree = 1.0
+learning_rate = 0.05
+n_estimators = 2000
+reg_lambda = 10
+reg_alpha = 1
+max_delta_step = 1
+random_state = 42
+n_jobs = -1
+
+[training]
+early_stopping_rounds = 50
+early_stopping_validation_fraction = 0.10
+
+[calibration]
+method = "isotonic"
+cv = 5
+
+[sweep]
+n_trials = 200
+timeout = 36000
+study_name = "stateball_xgb"
+pruner_startup_trials = 5
+pruner_warmup_steps = 20
+n_estimators_range = [100, 1500]
+max_depth_range = [3, 6]
+min_child_weight_range = [5, 200]
+learning_rate_range = [0.01, 0.3]
+subsample_range = [0.5, 1.0]
+colsample_bytree_range = [0.5, 1.0]
+reg_lambda_range = [0.1, 100.0]
+reg_alpha_range = [1e-8, 1.0]
+max_leaves_range = [8, 64]
+feature_blocks_sweep = false
+objectives = ["reliability", "resolution", "inference_ms"]
+sweep_eval_fraction = 0.40
+sweep_sample_fraction = 0.33
+inference_speed_weight = 0.003  # λ in score = brier + λ*log(inference_ms)
+
+[output]
+dir = "xg/experiments"

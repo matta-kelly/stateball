@@ -1,0 +1,86 @@
+version: '3'
+
+vars:
+  NETWORK: stateball
+  PY: .venv/bin/python
+  DBT: .venv/bin/dbt
+  DAGSTER: .venv/bin/dagster
+
+tasks:
+  minio:
+    desc: Start minio for local S3
+    cmds:
+      - podman pod rm -f minio minio-init-pod 2>/dev/null || true
+      - podman network create {{.NETWORK}} 2>/dev/null || true
+      - kubectl kustomize warehouse/manifests/base | podman play kube --network {{.NETWORK}} -
+
+  minio-down:
+    desc: Stop minio
+    cmds:
+      - podman pod rm -f minio minio-init-pod 2>/dev/null || true
+
+  postgres:
+    desc: Start PostgreSQL for local DuckLake catalog
+    cmds:
+      - podman rm -f stateball-pg 2>/dev/null || true
+      - podman network create {{.NETWORK}} 2>/dev/null || true
+      - >-
+        podman run -d --name stateball-pg --network {{.NETWORK}}
+        -e POSTGRES_DB=ducklake
+        -e POSTGRES_USER=ducklake
+        -e POSTGRES_PASSWORD=ducklake
+        -p 5432:5432
+        docker.io/postgres:16.2-alpine
+
+  postgres-down:
+    desc: Stop local PostgreSQL
+    cmds:
+      - podman rm -f stateball-pg 2>/dev/null || true
+
+  dev:
+    desc: Start minio + PostgreSQL + Dagster UI
+    deps: [minio, postgres]
+    cmds:
+      - "{{.DAGSTER}} dev -m orchestration.definitions"
+
+  dagster-dev:
+    desc: Launch Dagster UI (without minio/postgres)
+    cmds:
+      - "{{.DAGSTER}} dev -m orchestration.definitions"
+
+  discover:
+    desc: Discover schema (pass SOURCE and STREAM)
+    cmds:
+      - "{{.PY}} -m orchestration.dlt.discover_source {{.SOURCE}} {{.STREAM}}"
+
+  train:
+    desc: Run XGBoost training pipeline
+    cmds:
+      - "{{.PY}} -m xg.pa.train {{.CONFIG | default \"packages/simulator/xg/configs/default.toml\"}}"
+
+  sweep:
+    desc: Run multi-objective hyperparameter sweep
+    cmds:
+      - "{{.PY}} -m xg.pa.sweep {{.CONFIG | default \"packages/simulator/xg/configs/sweep.toml\"}}"
+
+  sweep-final:
+    desc: Sweep + retrain best candidate
+    cmds:
+      - "{{.PY}} -m xg.pa.sweep --final {{.CONFIG | default \"packages/simulator/xg/configs/sweep.toml\"}}"
+
+  validate:
+    desc: Validate an existing model artifact
+    cmds:
+      - "{{.PY}} -m xg.pa.validate {{.ARTIFACT_ID}}"
+
+  sim:
+    desc: Run sample simulations
+    cmds:
+      - "{{.PY}} -m sample_runner.cli {{.CLI_ARGS}}"
+
+  clean:
+    desc: Remove everything
+    cmds:
+      - podman pod rm -f minio minio-init-pod 2>/dev/null || true
+      - podman rm -f stateball-pg 2>/dev/null || true
+      - podman network rm {{.NETWORK}} 2>/dev/null || true

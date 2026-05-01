@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stateball-sim-worker
+  namespace: stateball
+  labels:
+    app: stateball-sim-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stateball-sim-worker
+  template:
+    metadata:
+      labels:
+        app: stateball-sim-worker
+    spec:
+      containers:
+        - name: sim-worker
+          image: ghcr.io/<your-org>/liveball:sha-6e7a05f
+          command:
+            - ".venv/bin/python"
+            - "-m"
+            - "data_feed.sim.standalone"
+            - "--workers"
+            - "2"
+            - "--estimator"
+            - "truncated_mc"
+          env:
+            - name: S3_ENDPOINT
+              value: "http://minio.stateball.svc.cluster.local:9000"
+            - name: S3_BUCKET
+              value: "dazoo"
+            - name: S3_USE_SSL
+              value: "false"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_access_key_id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_secret_access_key
+            - name: DUCKLAKE_DB_HOST
+              value: "ducklake-db-rw.stateball.svc.cluster.local"
+            - name: DUCKLAKE_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: user
+            - name: DUCKLAKE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: password
+            - name: DUCKLAKE_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: dbname
+            - name: REDIS_URL
+              value: "redis://liveball-redis-0.liveball-redis.stateball.svc.cluster.local:6379/0"
+          ports:
+            - containerPort: 8002
+              name: health
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 2000m
+              memory: 3Gi

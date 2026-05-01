@@ -1,0 +1,136 @@
+name: Build Warehouse
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'warehouse/**'
+      - 'packages/simulator/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'warehouse/**'
+      - 'packages/simulator/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: <your-org>/stateball
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Validate - Catch errors before they hit the cluster
+  # ─────────────────────────────────────────────────────────────────────────
+  validate:
+    runs-on: lotus-lake-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/0.9.26/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Validate lock file
+        run: uv lock --check
+
+      - name: Lint
+        run: uvx ruff@0.15.5 check .
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-dev --package warehouse
+
+      - name: Validate dbt
+        run: |
+          cd warehouse/orchestration && ../../.venv/bin/dbt parse --profiles-dir . --project-dir .
+          echo "dbt validation passed"
+
+      - name: Validate Python syntax
+        run: |
+          .venv/bin/python -m py_compile warehouse/orchestration/definitions.py warehouse/orchestration/resources.py warehouse/orchestration/lib.py
+          .venv/bin/python -c "import orchestration.assets"
+          .venv/bin/python -m py_compile packages/simulator/xg/core/config.py packages/simulator/xg/core/data.py packages/simulator/xg/core/evaluate.py packages/simulator/xg/core/io.py packages/simulator/xg/pa/train.py packages/simulator/xg/pa/sweep.py packages/simulator/xg/pa/validate.py
+          echo "Python syntax validation passed"
+
+      - name: Validate Helm release
+        run: |
+          helm repo add dagster https://dagster-io.github.io/helm
+          helm template dagster dagster/dagster -f warehouse/deploy/dagster-helmrelease.yaml --set postgresql.enabled=false > /dev/null
+          echo "Helm template validation passed"
+
+      - name: Validate image paths
+        run: |
+          REPO="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          USER_IMAGE=$(grep -A1 'repository:' warehouse/deploy/dagster-helmrelease.yaml | grep 'forgejo' | head -1 | tr -d ' ')
+          if [[ "$USER_IMAGE" != *"$REPO"* ]]; then
+            echo "::warning::User deployment image may need updating to $REPO"
+          fi
+          echo "Image path check complete"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build - Only runs if validation passes
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    needs: validate
+    runs-on: lotus-lake-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        if: gitea.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ gitea.actor }} --password-stdin
+
+      - name: Build image
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          docker build \
+            --platform linux/amd64 \
+            --cache-from ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -f warehouse/Dockerfile \
+            .
+
+      - name: Push image
+        if: gitea.event_name != 'pull_request'
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Deploy - Update image tags in deploy/ manifests
+  # ─────────────────────────────────────────────────────────────────────────
+  # Flux watches deploy/ via GitRepository + Kustomization in dazoo.
+  # CI commits updated tags here, Flux reconciles automatically.
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    needs: build
+    runs-on: lotus-lake-ci
+    if: gitea.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update image tags
+        run: |
+          SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
+          TAG="sha-${SHORT_SHA}"
+
+          # Dagster user deployment + webserver env (HelmRelease)
+          sed -i "s/^ *tag: sha-[a-f0-9]*/            tag: ${TAG}/" warehouse/deploy/dagster-helmrelease.yaml
+          sed -i "s/value: \"sha-[a-f0-9]*\"/value: \"${TAG}\"/" warehouse/deploy/dagster-helmrelease.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "forgejo-actions[bot]"
+          git config user.email "ci@example.com"
+          git add warehouse/deploy/
+          git diff --cached --quiet || git commit -m "ci: update image tags to sha-$(echo '${{ gitea.sha }}' | cut -c1-7)"
+          git pull --rebase
+          git push

@@ -1,0 +1,196 @@
+# ==============================================================================
+# Dagster Helm Release (stateball)
+# ==============================================================================
+# MLB analytics pipeline orchestration
+# Image tag auto-updated by CI deploy step
+# ==============================================================================
+
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dagster
+  namespace: stateball
+spec:
+  interval: 30m
+  timeout: 10m
+  chart:
+    spec:
+      chart: dagster
+      version: "1.12.8"
+      sourceRef:
+        kind: HelmRepository
+        name: dagster
+        namespace: flux-system
+
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+
+  values:
+    # -------------------------------------------------------------------------
+    # External PostgreSQL (CNPG)
+    # -------------------------------------------------------------------------
+    postgresql:
+      enabled: false
+      postgresqlHost: "dagster-db-rw.stateball.svc.cluster.local"
+      postgresqlPort: 5432
+      postgresqlUsername: "dagster"
+      postgresqlDatabase: "dagster"
+
+    generatePostgresqlPasswordSecret: false
+
+    global:
+      postgresqlSecretName: "dagster-db-credentials"
+      postgresqlSecretKey: "password"
+      postgresqlHost: "dagster-db-rw.stateball.svc.cluster.local"
+      postgresqlPort: 5432
+      postgresqlUsername: "dagster"
+      postgresqlDatabase: "dagster"
+
+    # -------------------------------------------------------------------------
+    # Webserver
+    # -------------------------------------------------------------------------
+    dagsterWebserver:
+      env:
+        # Forces webserver restart when user code image changes (updated by CI)
+        - name: USER_CODE_IMAGE_TAG
+          value: "sha-38c1212"
+        - name: DAGSTER_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dagster-db-credentials
+              key: password
+
+    # -------------------------------------------------------------------------
+    # Instance config (goes into dagster.yaml)
+    # -------------------------------------------------------------------------
+    additionalInstanceConfig:
+      python_logs:
+        managed_python_loggers:
+          - xg
+          - sim
+        python_log_level: INFO
+      concurrency:
+        default_op_concurrency_limit: 3
+      code_servers:
+        reload_timeout: 60
+      run_monitoring:
+        enabled: true
+        poll_interval_seconds: 120
+        max_resume_run_attempts: 0
+        start_timeout_seconds: 180
+        cancel_timeout_seconds: 180
+        free_slots_after_run_end_seconds: 1
+      retention:
+        schedule:
+          purge_after_days: 7
+        sensor:
+          purge_after_days:
+            skipped: 7
+            failure: 30
+            success: 7
+
+    # -------------------------------------------------------------------------
+    # Daemon
+    # -------------------------------------------------------------------------
+    dagsterDaemon:
+      runCoordinator:
+        enabled: true
+        type: QueuedRunCoordinator
+        config:
+          queuedRunCoordinator:
+            maxConcurrentRuns: 6
+      env:
+        - name: DAGSTER_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dagster-db-credentials
+              key: password
+
+    # -------------------------------------------------------------------------
+    # Run Launcher
+    # -------------------------------------------------------------------------
+    runLauncher:
+      type: K8sRunLauncher
+      config:
+        k8sRunLauncher:
+          runK8sConfig:
+            jobSpecConfig:
+              ttlSecondsAfterFinished: 86400
+            podSpecConfig:
+              volumes:
+                - name: duckdb-swap
+                  emptyDir:
+                    sizeLimit: "10Gi"
+            containerConfig:
+              resources:
+                limits:
+                  memory: "15Gi"
+                requests:
+                  memory: "2Gi"
+              volumeMounts:
+                - name: duckdb-swap
+                  mountPath: /tmp/duckdb_swap
+          envSecrets:
+            - name: dagster-db-credentials
+            - name: stateball-app-secrets
+            - name: ducklake-db-app
+          envVars:
+            - "DUCKLAKE_DB_HOST=ducklake-db-rw.stateball.svc.cluster.local"
+            - "S3_ENDPOINT=http://minio.stateball.svc.cluster.local:9000"
+            - "S3_BUCKET=dazoo"
+            - "S3_USE_SSL=false"
+            - "DBT_TARGET=prod"
+
+    # -------------------------------------------------------------------------
+    # User Deployments
+    # -------------------------------------------------------------------------
+    dagster-user-deployments:
+      enabled: true
+      deployments:
+        - name: stateball
+          image:
+            repository: ghcr.io/<your-org>/stateball
+            tag: sha-38c1212  # Auto-updated by CI
+            pullPolicy: IfNotPresent
+          dagsterApiGrpcArgs:
+            - "-m"
+            - "orchestration.definitions"
+          port: 3030
+          env:
+            - name: DAGSTER_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-db-credentials
+                  key: password
+            # dbt target
+            - name: DBT_TARGET
+              value: "prod"
+            # DuckLake (Postgres catalog)
+            - name: DUCKLAKE_DB_HOST
+              value: "ducklake-db-rw.stateball.svc.cluster.local"
+            - name: DUCKLAKE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ducklake-db-app
+                  key: password
+            # S3 (MinIO)
+            - name: S3_ENDPOINT
+              value: "http://minio.stateball.svc.cluster.local:9000"
+            - name: S3_BUCKET
+              value: "dazoo"
+            - name: S3_USE_SSL
+              value: "false"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_access_key_id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stateball-app-secrets
+                  key: s3_secret_access_key

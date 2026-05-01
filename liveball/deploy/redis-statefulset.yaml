@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: liveball-redis
+  namespace: stateball
+  labels:
+    app: liveball-redis
+spec:
+  serviceName: liveball-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: liveball-redis
+  template:
+    metadata:
+      labels:
+        app: liveball-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          command: ["redis-server", "--save", "60", "1", "--loglevel", "warning", "--maxmemory", "450mb", "--maxmemory-policy", "noeviction"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
