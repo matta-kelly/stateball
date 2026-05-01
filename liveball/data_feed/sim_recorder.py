@@ -1,9 +1,7 @@
 """Sim result recorder — live-only, serves the WP chart's sim overlay.
 
 Records sim probability outputs to the in-memory buffer and Redis for
-live reads. Durable persistence of sim predictions is handled by the
-trading engine's journal (packages/execution/trading/shared/flush.py →
-lakehouse.main.trading_predictions), not here.
+live reads.
 """
 
 from __future__ import annotations

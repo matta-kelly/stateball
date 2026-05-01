@@ -146,11 +146,6 @@ async def track_game(
             else:
                 interval = _poll_interval(abstract)
 
-            # --- Market snapshots on every state change ---
-            if abstract == "Live" and changed:
-                from data_feed.market_recorder import schedule_event_snapshots
-                asyncio.create_task(schedule_event_snapshots(snapshot, game_pk))
-
             # --- Sim dispatch on every state change ---
             if hydrator is not None and abstract == "Live" and changed and update.gumbo is not None:
                 try:

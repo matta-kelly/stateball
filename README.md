@@ -111,4 +111,4 @@ for how it's wired in production.
 
 ## License
 
-Personal project. Not currently licensed for redistribution.
+MIT — see [LICENSE](LICENSE).

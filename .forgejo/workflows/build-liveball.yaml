@@ -62,7 +62,7 @@ jobs:
         run: |
           SHORT_SHA=$(echo "${{ gitea.sha }}" | cut -c1-7)
           TAG="sha-${SHORT_SHA}"
-          sed -i "s|liveball:sha-[a-f0-9]*|liveball:${TAG}|" liveball/deploy/deployment.yaml liveball/deploy/data-feed-deployment.yaml liveball/deploy/sim-worker-deployment.yaml liveball/deploy/trading-engine-deployment.yaml
+          sed -i "s|liveball:sha-[a-f0-9]*|liveball:${TAG}|" liveball/deploy/deployment.yaml liveball/deploy/data-feed-deployment.yaml liveball/deploy/sim-worker-deployment.yaml
 
       - name: Commit and push
         run: |
