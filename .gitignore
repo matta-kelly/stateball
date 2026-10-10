@@ -1,51 +1,23 @@
-# Virtual environment
 .venv/
-
-# Python
 __pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
+*.pyc
+.ruff_cache/
+.pytest_cache/
 
-# dlt
-.dlt/
+.env
+.env.*
+!.env.example
+.dagster_home/
 
 # dbt
-warehouse/orchestration/target/
-warehouse/orchestration/logs/
+orchestration/target/
+orchestration/logs/
+orchestration/dbt_packages/
+orchestration/.user.yml
 
-# Environment
-.env
+# vault note: private, belongs to the knowledge vault, not the repo
+stateball.md
 
-# Training experiments (model artifacts)
-packages/simulator/xg/experiments/
-packages/simulator/xg/sweep_summary.json
-
-# Local training configs (may reference prod credentials)
-packages/simulator/xg/configs/local*.toml
-
-# Node
-node_modules/
-
-# Frontend build output
-liveball/frontend/dist/
-*.tsbuildinfo
-
-# DuckDB
-*.duckdb
-*.duckdb.wal
-
-# Dagster
-.tmp_dagster_home_*/
-
-# Data files
-*.parquet
-
-# Claude Code
-.claude/
-
-# IDE
-.idea/
-.vscode/
-liveball/data_feed.db
+# this folder is shared with private vault notes; only specs are public
+_well/*
+!_well/spec-*.md

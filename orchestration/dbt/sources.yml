@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  # dlt's dataset_name becomes the Postgres schema, so the kalshi source's
+  # resources land at kalshi.<resource> — kalshi.markets, not landing.kalshi_markets.
+  - name: kalshi
+    schema: kalshi
+    tables:
+      - name: markets
+        description: >
+          Every Kalshi MLB game market within the pull window, one row per ticker,
+          current state. Two rows per game — one market per team. Merged on ticker
+          hourly.
