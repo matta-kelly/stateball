@@ -1,0 +1,35 @@
+name: stateball
+version: "0.1.0"
+profile: stateball
+
+model-paths: ["dbt"]
+seed-paths: ["dbt/seeds"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# Config keys mirror the directory tree under model-paths: dbt/processed/ ->
+# `processed`. Each layer gets its own Postgres schema rather than one schema
+# separated by a name prefix — schemas are free and grants are per-schema.
+models:
+  stateball:
+    # Model and column descriptions are copied into Postgres as COMMENT ON at
+    # the end of each build, so psql and any catalog reader see the same text
+    # and it cannot drift from the deployed table.
+    +persist_docs:
+      relation: true
+      columns: true
+    processed:
+      +schema: processed
+      +materialized: table
+
+seeds:
+  stateball:
+    +persist_docs:
+      relation: true
+      columns: true
+    +schema: reference
+    kalshi_team_map:
+      +column_types:
+        kalshi_abbrev: text
+        team_id: integer

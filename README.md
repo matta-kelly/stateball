@@ -1,114 +1,71 @@
 # stateball
 
-End-to-end MLB modeling system: data ingestion, warehouse, ML training,
-in-game Monte Carlo simulation, and a real-time dashboard.
+MLB prediction-market recording and a small warehouse. This is the rebuild; version one is kept at the [`v1` tag](https://github.com/matta-kelly/stateball/tree/v1).
 
-## What it does
+Today it does one thing: every hour it pulls Kalshi's MLB game markets into Postgres and decodes each ticker into a game date, two teams and a side.
 
-Predicts plate-appearance outcomes with an XGBoost model (22-class
-multi-class, ~172 features), uses those probabilities to drive a
-Markov chain Monte Carlo simulator, and surfaces the resulting
-win-probability estimates on a live dashboard during games.
+- ingestion: a dlt source for the Kalshi API, landing in the `kalshi` schema
+- transform: one dbt model, `proc_kalshi__markets`, in the `processed` schema, and one seed, `kalshi_team_map`, in the `reference` schema
+- orchestration: a Dagster code location that runs the ingestion on an hourly cron
 
-The pipeline is grain-correct end-to-end: pitch-level for the model,
-PA-level for the sim transitions, game-level for win probability.
+Built with Python 3.12, uv, Dagster, dlt and dbt, on Postgres.
 
-## Repo layout
+## Run it
 
-| Path | What's there |
-|---|---|
-| `packages/simulator/xg/` | XGBoost training pipeline — data prep, train, sweep, validate, calibration |
-| `packages/simulator/sim/` | Monte Carlo simulation engine — game state, batch-vectorized PA stepper, baserunning + pitcher-exit lookup tables, native XGBoost inference |
-| `warehouse/orchestration/` | Dagster assets + sensors + dbt project — Statcast / Stats API ingestion, processing, feature vectors |
-| `warehouse/orchestration/dag/` | dbt models (raw → processed → intermediate → analysis → feat) |
-| `warehouse/deploy/` | k8s manifests for the warehouse side (Dagster, MinIO, DuckLake catalog) |
-| `liveball/backend/` | FastAPI service — game state, sim results, model artifact registry |
-| `liveball/data_feed/` | Live ingestion — schedule mirror, MLB Stats API live polling, sim job dispatcher, Redis-backed snapshot |
-| `liveball/frontend/` | React + Vite SPA — live game cards, win probability charts, model workshop |
-| `liveball/deploy/` | k8s manifests for the dashboard + sim workers |
-| `.forgejo/workflows/` | CI: image build + manifest tag bump |
+Needs [uv](https://docs.astral.sh/uv/), [just](https://just.systems), a Postgres server you can reach, and a Kalshi API key.
 
-## How the pieces fit
+The code reads its configuration from the environment. `just` loads a `.env` file from the repo root if there is one.
 
-```
-                    ┌───────────────────────────────────────────────┐
-                    │  warehouse/  —  Dagster + dbt                 │
-   MLB Stats API ─► │  raw  →  proc  →  int  →  feat  →  artifacts │
-                    └────────────────────┬──────────────────────────┘
-                                         │  features, models, lookup tables
-                                         ▼
-                    ┌──────────────────────────────────────────────┐
-                    │  packages/simulator/                         │
-                    │  xg/   train + calibrate XGBoost             │
-                    │  sim/  Markov chain + Monte Carlo (batched)  │
-                    └────────────────────┬─────────────────────────┘
-                                         │  P(home wins) ± SE
-                                         ▼
-                    ┌──────────────────────────────────────────────┐
-                    │  liveball/                                   │
-                    │  data_feed   live MLB poll → snapshot        │
-                    │  backend     FastAPI                          │
-                    │  frontend    React dashboard                  │
-                    └──────────────────────────────────────────────┘
-```
+| Variable             | Used for                                  | Default     |
+| -------------------- | ----------------------------------------- | ----------- |
+| `POSTGRES_HOST`      | the database host                         | `127.0.0.1` |
+| `POSTGRES_PORT`      | the database port                         | `5432`      |
+| `POSTGRES_DB`        | the database name                         | `stateball` |
+| `POSTGRES_USER`      | the database user                         | `stateball` |
+| `POSTGRES_PASSWORD`  | the database password                     | none        |
+| `KALSHI_KEY_ID`      | the id of the Kalshi API key              | none        |
+| `KALSHI_PRIVATE_KEY` | the key's RSA private key, as PEM text    | none        |
 
-## Where to start reading
+The three without a default are required.
 
-If you're skimming the code:
-
-- **Dagster asset graph** — `warehouse/orchestration/definitions.py`
-  Top-level wiring: jobs, schedules, sensors, all assets registered.
-- **dbt models** — `warehouse/orchestration/dag/`
-  Layered: `raw/` → `processed/` → `intermediate/` → `analysis/` → `feat/`.
-- **XGBoost training** — `packages/simulator/xg/train.py` and `xg/configs/`
-  Plus `xg/sweep.py` for hyperparameter sweeps and `xg/validate.py` for the
-  validation harness.
-- **Sim engine** — `packages/simulator/sim/core/batch_engine.py`
-  Batch-vectorized PA stepper. The scalar version (`engine.py`) is preserved
-  as the reference implementation. Decomposed-model inference avoids the
-  sklearn calibration wrapper for ~5x speedup vs ONNX in batch mode.
-- **Live data feed** — `liveball/data_feed/__main__.py`
-  Async lifespan that runs the live MLB game manager + sim dispatcher +
-  Redis-backed snapshot.
-- **Dashboard** — `liveball/frontend/src/pages/GameDetail.tsx`
-  Win-probability chart, current at-bat panel, lineup, box score, roster.
-
-## Running it
-
-This is wired for production deployment via the manifests in `*/deploy/`
-(Kubernetes + Flux + ExternalSecrets in the original setup). For local dev:
-
-```bash
-# Install workspace
+```sh
 uv sync
-
-# Local infra: MinIO + Postgres
-go-task minio postgres
-
-# Dagster UI
-go-task dev
-
-# XGBoost training
-go-task train CONFIG=packages/simulator/xg/configs/default.toml
-
-# Sim eval harness
-go-task sim
+uv run dagster dev
 ```
 
-The `liveball/` dashboard runs against MinIO + DuckLake + Redis — see
-`liveball/.env.example` for the env vars it needs and `liveball/deploy/`
-for how it's wired in production.
+`dagster dev` loads the code location named in `pyproject.toml`. The hourly ingestion is armed as soon as it loads.
 
-## Stack
+The `justfile` is not finished:
 
-- **Orchestration**: Dagster (assets, sensors, schedules)
-- **Warehouse**: DuckDB via DuckLake (S3 + Postgres catalog), dbt for transforms
-- **Modeling**: XGBoost + isotonic calibration, decomposed for inference
-- **Simulator**: NumPy-vectorized Markov chain Monte Carlo, baserunning + pitcher-exit lookup tables
-- **Backend**: Python 3.12, FastAPI, Redis (live state), SQLite (schedule)
-- **Frontend**: React + Vite + TypeScript, TanStack Query, Apache ECharts, shadcn/ui + Tailwind
-- **Deploy**: Kubernetes + Flux (GitOps), ExternalSecrets, image registry-driven CI
+- `just up` and `just down` are stubs. They print `TODO` and start nothing, so starting Postgres is up to you.
+- `just psql` expects a running container named `postgres`, which no recipe creates.
+- `just build` and `just debug` work. They run `dbt build` and `dbt debug`.
 
-## License
+Run the ingestion once before `just build`. The dbt model reads the table the ingestion lands.
 
-MIT — see [LICENSE](LICENSE).
+## Check it
+
+```sh
+just build
+```
+
+`dbt build` loads the seed, builds the model and runs the dbt data tests declared beside it. It needs the database.
+
+That is the only check today. `ruff` and `pytest` are installed as dev dependencies, but there is no `ruff` configuration and there are no `pytest` tests. No check runs on a pull request.
+
+## Ship it
+
+Nothing is deployed yet. There is no container image and no pipeline.
+
+## Layout
+
+| Path                                 | Holds                                             |
+| ------------------------------------ | ------------------------------------------------- |
+| `orchestration/definitions.py`       | the Dagster code location                         |
+| `orchestration/ingestion.py`         | the Dagster assets and their cron                 |
+| `orchestration/shared.py`            | the dbt project wiring and per-run config         |
+| `orchestration/dlt/`                 | the dlt pipeline and the Kalshi source and client |
+| `orchestration/dbt/`                 | dbt sources, models and seeds                     |
+| `orchestration/macros/`              | dbt macros                                        |
+| `orchestration/dbt_project.yml`      | the dbt project                                   |
+| `orchestration/profiles.yml`         | the dbt connection, read from the environment     |

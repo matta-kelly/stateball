@@ -1,0 +1,17 @@
+stateball:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', '127.0.0.1') }}"
+      port: "{{ env_var('POSTGRES_PORT', 5432) | int }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'stateball') }}"
+      user: "{{ env_var('POSTGRES_USER', 'stateball') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', '') }}"
+      schema: processed
+      threads: 4
+
+      # Everything temporal is timestamptz. Market and game clocks are UTC;
+      # any local-day bucketing happens at read, not in storage.
+      session_parameters:
+        TimeZone: UTC

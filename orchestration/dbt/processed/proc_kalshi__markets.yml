@@ -1,0 +1,131 @@
+version: 2
+
+models:
+  - name: proc_kalshi__markets
+    description: >
+      One row per Kalshi MLB game market, with the ticker string decoded into
+      game date, both teams, and which side the market pays on. Two rows per
+      game — one market per team. This is the roster: what markets exist, which
+      are open, and when they close. There is no game_pk; matching a market to
+      an MLB game is a later join on date plus both team ids, and this model
+      carries everything that join needs.
+    columns:
+      - name: ticker
+        description: >
+          Kalshi's id for the market, and the grain of this table. Every other
+          column here is either copied from the market payload or decoded out of
+          this string.
+        data_tests: [unique, not_null]
+
+      - name: event_ticker
+        description: >
+          The Kalshi event a game's two markets share. The date and both teams
+          are read off this rather than off the ticker.
+
+      - name: game_date
+        description: >
+          Calendar date encoded in the event ticker, as a date. This is Kalshi's
+          date for the game, which for a late game may not agree with the MLB
+          game_date in another timezone — treat it as the join key it is, not as
+          an authority on when the game was played.
+        data_tests: [not_null]
+
+      - name: game_number
+        description: >
+          Which game of a doubleheader, from the ticker's trailing G1/G2. 1 when
+          the ticker carries no marker, which is the ordinary single-game case.
+        data_tests: [not_null]
+
+      - name: game_type
+        description: >
+          R for regular season (KXMLBGAME), S for spring training (KXMLBSTGAME).
+          Only the regular-season series is ingested today, so this is R
+          throughout until that changes.
+
+      - name: away_abbrev
+        description: >
+          Kalshi's abbreviation for the away team, resolved by longest match
+          against kalshi_team_map. Null means the abbreviation is not in the map
+          — see away_team_id.
+      - name: away_team_id
+        description: >
+          MLB's team id for the away team. Null when the abbreviation did not
+          resolve, which is the signal that kalshi_team_map needs a new row. The
+          test is a warning rather than an error on purpose: an unrecognized
+          abbreviation should surface loudly but must not fail the build, since
+          the market is still worth recording.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+
+      - name: home_abbrev
+        description: >
+          Kalshi's abbreviation for the home team — whatever remains after the
+          away abbreviation is taken off the front of the concatenated pair.
+      - name: home_team_id
+        description: MLB's team id for the home team. Null handling as away_team_id.
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+
+      - name: team_abbrev
+        description: >
+          The team this market pays out on, from the trailing segment of the
+          ticker. A YES fill on this ticker is a bet that this team wins.
+      - name: side
+        description: >
+          Whether team_abbrev is the home or away side. Null when either
+          abbreviation failed to resolve.
+        data_tests:
+          - accepted_values:
+              values: [home, away]
+              config:
+                severity: warn
+
+      - name: status
+        description: >
+          unopened, open, closed, or settled. The recorder subscribes to open
+          markets; this is the only field that moves much over a market's life.
+      - name: result
+        description: >
+          yes or no on this ticker's team winning, once settled. Null before
+          settlement — the empty string Kalshi sends is normalized away here.
+
+      - name: open_time
+        description: When trading opens. Well ahead of first pitch, not at it.
+      - name: close_time
+        description: >
+          When trading closes, around the final out. The closest thing here to
+          "when is this game", and what the recorder filters on to pick tonight's
+          subscriptions.
+      - name: settlement_ts
+        description: When Kalshi settled and paid out. Null until then.
+      - name: created_time
+        description: When Kalshi created the market. Earlier than open_time.
+      - name: updated_time
+        description: When the market last changed — a status move or settlement.
+
+      - name: market_type
+        description: Kalshi's contract type. Binary for game winner markets.
+      - name: title
+        description: >
+          Kalshi's human-readable market question. For reading in a result set,
+          not for parsing; the ticker is the machine-readable form.
+
+seeds:
+  - name: kalshi_team_map
+    description: >
+      Kalshi team abbreviation to MLB team id. Thirty-one rows for thirty teams —
+      Arizona appears as both ARI and AZ. This exists because Kalshi concatenates
+      the two abbreviations in a ticker with no delimiter, so splitting the pair
+      needs a known set to match against.
+    columns:
+      - name: kalshi_abbrev
+        description: The abbreviation as Kalshi writes it in a ticker.
+        data_tests: [unique, not_null]
+      - name: team_id
+        description: >
+          MLB Stats API team id. Not unique — two abbreviations map to Arizona.
+        data_tests: [not_null]

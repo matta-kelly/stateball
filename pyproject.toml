@@ -1,8 +1,40 @@
 [project]
 name = "stateball"
 version = "0.1.0"
-description = "MLB state-based analytics pipeline for Markov chain win probability modeling"
-requires-python = ">=3.12,<3.14"
+description = "MLB prediction-market recording and warehouse"
+requires-python = ">=3.12"
+dependencies = [
+    # ingestion
+    "dlt[postgres]",
+    "requests>=2.28",
+    "cryptography>=42",  # RSA-PSS request signing for the Kalshi API
+    # transform
+    "dbt-postgres",
+    "psycopg>=3.3.4",
+    # orchestration
+    "dagster>=1.13.14",
+    "dagster-dlt>=0.29.14",
+    "dagster-dbt>=0.29.14",
+    "dagster-postgres>=0.29.14",
+]
 
-[tool.uv.workspace]
-members = ["packages/simulator", "warehouse", "liveball"]
+[dependency-groups]
+dev = [
+    "dagster-webserver>=1.13.14",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["orchestration"]
+
+[tool.dagster]
+module_name = "orchestration.definitions"
+code_location_name = "stateball"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
