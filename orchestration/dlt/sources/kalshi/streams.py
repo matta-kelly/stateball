@@ -4,6 +4,7 @@ Landing holds what Kalshi says about a market, projected to the fields anything
 downstream actually reads. Parsing, typing beyond the declared schema, and the
 join to a real game are all dbt's job — not landing's.
 """
+
 import os
 import time
 
@@ -19,8 +20,16 @@ MLB_SERIES = "KXMLBGAME"
 # it is read by anything. Widening this later is one entry here plus one in
 # MARKETS_COLUMNS.
 _KEEP = (
-    "ticker", "event_ticker", "market_type", "title", "status", "result",
-    "created_time", "updated_time", "open_time", "close_time",
+    "ticker",
+    "event_ticker",
+    "market_type",
+    "title",
+    "status",
+    "result",
+    "created_time",
+    "updated_time",
+    "open_time",
+    "close_time",
     "settlement_ts",
 )
 
@@ -31,69 +40,80 @@ _KEEP = (
 # markets in it still lands `result` and `settlement_ts` as real columns.
 MARKETS_COLUMNS = {
     "ticker": {
-        "data_type": "text", "nullable": False,
+        "data_type": "text",
+        "nullable": False,
         "description": "Kalshi's id for one market, and the primary key. Encodes the "
-                       "series, the game date, both team abbreviations concatenated "
-                       "with no delimiter, and which team the market pays out on — "
-                       "e.g. KXMLBGAME-26AUG06HOUSEA-HOU is the Houston side of "
-                       "Houston at Seattle on 2026-08-06. Every game has two markets, "
-                       "one per team.",
+        "series, the game date, both team abbreviations concatenated "
+        "with no delimiter, and which team the market pays out on — "
+        "e.g. KXMLBGAME-26AUG06HOUSEA-HOU is the Houston side of "
+        "Houston at Seattle on 2026-08-06. Every game has two markets, "
+        "one per team.",
     },
     "event_ticker": {
-        "data_type": "text", "nullable": True,
+        "data_type": "text",
+        "nullable": True,
         "description": "The Kalshi event both of a game's markets belong to. Same "
-                       "series/date/teams prefix as the ticker, without the trailing "
-                       "team. Two tickers share one event_ticker.",
+        "series/date/teams prefix as the ticker, without the trailing "
+        "team. Two tickers share one event_ticker.",
     },
     "market_type": {
-        "data_type": "text", "nullable": True,
+        "data_type": "text",
+        "nullable": True,
         "description": "Kalshi's contract type for the market. Binary for game "
-                       "winner markets.",
+        "winner markets.",
     },
     "title": {
-        "data_type": "text", "nullable": True,
+        "data_type": "text",
+        "nullable": True,
         "description": "Human-readable market question as Kalshi words it. For "
-                       "reading in a query result, not for parsing — the ticker is "
-                       "the machine-readable form.",
+        "reading in a query result, not for parsing — the ticker is "
+        "the machine-readable form.",
     },
     "status": {
-        "data_type": "text", "nullable": True,
+        "data_type": "text",
+        "nullable": True,
         "description": "Where the market is in its life: unopened, open, closed, "
-                       "settled. The recorder subscribes to open markets. This is "
-                       "the field that moves between pulls.",
+        "settled. The recorder subscribes to open markets. This is "
+        "the field that moves between pulls.",
     },
     "result": {
-        "data_type": "text", "nullable": True,
+        "data_type": "text",
+        "nullable": True,
         "description": "How the market resolved — yes or no on this ticker's team "
-                       "winning. Empty until the market settles.",
+        "winning. Empty until the market settles.",
     },
     "created_time": {
-        "data_type": "timestamp", "nullable": True,
+        "data_type": "timestamp",
+        "nullable": True,
         "description": "When Kalshi created the market. Well before trading opens; "
-                       "for when trading opens use open_time.",
+        "for when trading opens use open_time.",
     },
     "updated_time": {
-        "data_type": "timestamp", "nullable": True,
+        "data_type": "timestamp",
+        "nullable": True,
         "description": "When Kalshi last changed the market. Bumps on a status "
-                       "transition or on settlement.",
+        "transition or on settlement.",
     },
     "open_time": {
-        "data_type": "timestamp", "nullable": True,
+        "data_type": "timestamp",
+        "nullable": True,
         "description": "When trading opens. Not first pitch — Kalshi opens MLB game "
-                       "markets well ahead of the game, which is what gives the "
-                       "hourly pull its margin.",
+        "markets well ahead of the game, which is what gives the "
+        "hourly pull its margin.",
     },
     "close_time": {
-        "data_type": "timestamp", "nullable": True,
+        "data_type": "timestamp",
+        "nullable": True,
         "description": "When trading closes, which for a game market is around the "
-                       "final out. The closest thing in this table to 'when is this "
-                       "game', and what the recorder filters on to decide what to "
-                       "subscribe to tonight.",
+        "final out. The closest thing in this table to 'when is this "
+        "game', and what the recorder filters on to decide what to "
+        "subscribe to tonight.",
     },
     "settlement_ts": {
-        "data_type": "timestamp", "nullable": True,
+        "data_type": "timestamp",
+        "nullable": True,
         "description": "When Kalshi settled the market and paid out. Null until "
-                       "settlement; later than close_time.",
+        "settlement; later than close_time.",
     },
 }
 
@@ -162,11 +182,15 @@ def markets(series_ticker: str = MLB_SERIES, days_back: int = 7, log=None):
 
 # dlt has no `description=` on @dlt.resource; additional_table_hints is where a
 # table-level hint goes, and it rides into the persisted schema from there.
-markets.apply_hints(additional_table_hints={"description": (
-    "Every Kalshi MLB game market Kalshi knows about within the pull window, one row "
-    "per ticker, current state. Two rows per game — one market per team. The ticker "
-    "string carries the game date and both teams, so a market can be matched to a real "
-    "game entirely from this table plus a team abbreviation map; there is no game_pk "
-    "here and matching to MLB happens downstream. This is the roster the order book "
-    "recorder reads to decide what to subscribe to."
-)})
+markets.apply_hints(
+    additional_table_hints={
+        "description": (
+            "Every Kalshi MLB game market Kalshi knows about within the pull window, one row "
+            "per ticker, current state. Two rows per game — one market per team. The ticker "
+            "string carries the game date and both teams, so a market can be matched to a real "
+            "game entirely from this table plus a team abbreviation map; there is no game_pk "
+            "here and matching to MLB happens downstream. This is the roster the order book "
+            "recorder reads to decide what to subscribe to."
+        )
+    }
+)

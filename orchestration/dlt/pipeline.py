@@ -1,4 +1,5 @@
 """dlt pipeline factory — Postgres destination."""
+
 import os
 
 import dlt

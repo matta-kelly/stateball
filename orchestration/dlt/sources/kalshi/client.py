@@ -4,6 +4,7 @@ Carried over unchanged from the v1 warehouse. It has run against the live API
 for a season — the signing scheme and the retry set are both settled. Rewriting
 it buys nothing.
 """
+
 import base64
 import time
 from urllib.parse import urlparse
@@ -18,8 +19,9 @@ class KalshiClient:
 
     BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 
-    def __init__(self, key_id: str, private_key_pem: str,
-                 timeout: int = 30, max_retries: int = 3):
+    def __init__(
+        self, key_id: str, private_key_pem: str, timeout: int = 30, max_retries: int = 3
+    ):
         self.key_id = key_id
         self.private_key = serialization.load_pem_private_key(
             private_key_pem.encode(), password=None
@@ -70,21 +72,30 @@ class KalshiClient:
                 response.raise_for_status()
                 return response.json()
 
-            except (requests.exceptions.Timeout,
-                    requests.exceptions.ConnectionError) as e:
+            except (
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError,
+            ) as e:
                 if attempt < self.max_retries - 1:
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     if log:
-                        log.warning(f"Retry {attempt + 1}/{self.max_retries} after {wait}s: {e}")
+                        log.warning(
+                            f"Retry {attempt + 1}/{self.max_retries} after {wait}s: {e}"
+                        )
                     time.sleep(wait)
                 else:
                     raise
 
             except requests.exceptions.HTTPError as e:
-                if response.status_code in (502, 503, 504) and attempt < self.max_retries - 1:
-                    wait = 2 ** attempt
+                if (
+                    response.status_code in (502, 503, 504)
+                    and attempt < self.max_retries - 1
+                ):
+                    wait = 2**attempt
                     if log:
-                        log.warning(f"Retry {attempt + 1}/{self.max_retries} after {wait}s: {e}")
+                        log.warning(
+                            f"Retry {attempt + 1}/{self.max_retries} after {wait}s: {e}"
+                        )
                     time.sleep(wait)
                 else:
                     raise
