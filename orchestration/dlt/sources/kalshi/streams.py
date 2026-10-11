@@ -129,7 +129,7 @@ def _project(market: dict) -> dict:
     primary_key="ticker",
     columns=MARKETS_COLUMNS,
 )
-def markets(series_ticker: str = MLB_SERIES, days_back: int = 7, log=None):
+def markets(series_ticker: str = MLB_SERIES, days_back: int = 7, log=None, client=None):
     """MLB game markets for a Kalshi series, merged on ticker.
 
     Merge rather than append: a market row is the market's current state, and
@@ -145,11 +145,15 @@ def markets(series_ticker: str = MLB_SERIES, days_back: int = 7, log=None):
     the series reaches back years. Seven days covers rescheduled and suspended
     games drifting forward, and at roughly thirty markets a day it is cheap
     enough that there is no reason to tighten it. 0 disables the filter.
+
+    client is anything with KalshiClient's `get`. None builds a KalshiClient
+    from the environment, so only that path needs the Kalshi credentials.
     """
-    client = KalshiClient(
-        key_id=os.environ["KALSHI_KEY_ID"],
-        private_key_pem=os.environ["KALSHI_PRIVATE_KEY"],
-    )
+    if client is None:
+        client = KalshiClient(
+            key_id=os.environ["KALSHI_KEY_ID"],
+            private_key_pem=os.environ["KALSHI_PRIVATE_KEY"],
+        )
 
     min_close_ts = None
     if days_back > 0:
