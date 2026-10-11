@@ -1,0 +1,47 @@
+{
+  "markets": [
+    {
+      "ticker": "KXMLBGAME-26AUG06HOUSEA-HOU",
+      "event_ticker": "KXMLBGAME-26AUG06HOUSEA",
+      "market_type": "binary",
+      "title": "Houston vs Seattle Winner?",
+      "subtitle": "",
+      "yes_sub_title": "Houston",
+      "no_sub_title": "Houston",
+      "status": "settled",
+      "result": "no",
+      "can_close_early": true,
+      "created_time": "2026-08-04T16:00:00Z",
+      "updated_time": "2026-08-07T05:10:00Z",
+      "open_time": "2026-08-05T14:00:00Z",
+      "close_time": "2026-08-07T04:40:00Z",
+      "expiration_time": "2026-08-21T02:10:00Z",
+      "latest_expiration_time": "2026-08-21T02:10:00Z",
+      "settlement_ts": "2026-08-07T05:10:00Z",
+      "volume": 1200,
+      "volume_24h": 300
+    },
+    {
+      "ticker": "KXMLBGAME-26AUG06HOUSEA-SEA",
+      "event_ticker": "KXMLBGAME-26AUG06HOUSEA",
+      "market_type": "binary",
+      "title": "Houston vs Seattle Winner?",
+      "subtitle": "",
+      "yes_sub_title": "Seattle",
+      "no_sub_title": "Seattle",
+      "status": "settled",
+      "result": "yes",
+      "can_close_early": true,
+      "created_time": "2026-08-04T16:00:00Z",
+      "updated_time": "2026-08-07T05:10:00Z",
+      "open_time": "2026-08-05T14:00:00Z",
+      "close_time": "2026-08-07T04:40:00Z",
+      "expiration_time": "2026-08-21T02:10:00Z",
+      "latest_expiration_time": "2026-08-21T02:10:00Z",
+      "settlement_ts": "2026-08-07T05:10:00Z",
+      "volume": 1500.5,
+      "volume_24h": 400
+    }
+  ],
+  "cursor": ""
+}
