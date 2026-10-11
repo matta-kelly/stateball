@@ -3,6 +3,7 @@
 Ingestion assets live in `ingestion`, transform in `transform`; the code
 location is `definitions`.
 """
+
 from pathlib import Path
 
 from dagster import Config
@@ -29,6 +30,7 @@ dbt_resource = DbtCliResource(project_dir=dbt_project)
 class DbtConfig(Config):
     """Per-run transform knob. full_refresh drops and rebuilds instead of
     running incrementally."""
+
     full_refresh: bool = False
 
 
@@ -41,4 +43,5 @@ class RefreshConfig(Config):
     default, so a normal cron or manual run never resets. Flip it, materialize,
     and it is back off next run.
     """
+
     reset_cursor: bool = False

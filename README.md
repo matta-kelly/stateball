@@ -36,10 +36,19 @@ uv run dagster dev
 ## Check it
 
 ```sh
-just build
+just check
 ```
 
-Runs `dbt build`: the seed, the model and its data tests. It needs the database. No check runs on a pull request yet.
+Runs the whole check set, in this order, and stops at the first failure:
+
+- format: `ruff format --check`
+- lint: `ruff check`
+- load: the Dagster code location loads
+- build: `dbt build`, which runs the seed, the unit tests, the model and its data tests
+
+Needs [uv](https://docs.astral.sh/uv/), [just](https://just.systems/) and a Postgres server with a database named `stateball_check`. It reads and writes only that database, and it needs no Kalshi API key: the build runs on two invented markets in `tests/fixtures/`.
+
+The same command runs on every pull request into main.
 
 ## Ship it
 
