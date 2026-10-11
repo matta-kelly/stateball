@@ -36,5 +36,8 @@ packages = ["orchestration"]
 module_name = "orchestration.definitions"
 code_location_name = "stateball"
 
+[tool.ruff.lint]
+extend-select = ["ERA001"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
