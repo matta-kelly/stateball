@@ -1,0 +1,80 @@
+version: 2
+
+# Unit tests for the ticker decode. dbt runs them inside `dbt build`, before the
+# model is materialized, against the rows given here and not against landing.
+# The team ids are MLB's, as in the kalshi_team_map seed.
+unit_tests:
+  - name: decodes_date_teams_and_side_when_the_ticker_is_regular_season
+    model: proc_kalshi__markets
+    given:
+      - input: source('kalshi', 'markets')
+        rows:
+          - {ticker: KXMLBGAME-26AUG06HOUSEA-HOU, event_ticker: KXMLBGAME-26AUG06HOUSEA}
+          - {ticker: KXMLBGAME-26AUG06HOUSEA-SEA, event_ticker: KXMLBGAME-26AUG06HOUSEA}
+      - input: ref('kalshi_team_map')
+        rows:
+          - {kalshi_abbrev: HOU, team_id: 117}
+          - {kalshi_abbrev: SEA, team_id: 136}
+    expect:
+      rows:
+        - ticker: KXMLBGAME-26AUG06HOUSEA-HOU
+          game_date: "2026-08-06"
+          game_number: 1
+          game_type: R
+          away_abbrev: HOU
+          away_team_id: 117
+          home_abbrev: SEA
+          home_team_id: 136
+          team_abbrev: HOU
+          side: away
+        - ticker: KXMLBGAME-26AUG06HOUSEA-SEA
+          game_date: "2026-08-06"
+          game_number: 1
+          game_type: R
+          away_abbrev: HOU
+          away_team_id: 117
+          home_abbrev: SEA
+          home_team_id: 136
+          team_abbrev: SEA
+          side: home
+
+  - name: reads_the_game_number_when_the_ticker_is_a_doubleheader
+    model: proc_kalshi__markets
+    given:
+      - input: source('kalshi', 'markets')
+        rows:
+          - {ticker: KXMLBGAME-26AUG06HOUSEAG2-SEA, event_ticker: KXMLBGAME-26AUG06HOUSEAG2}
+      - input: ref('kalshi_team_map')
+        rows:
+          - {kalshi_abbrev: HOU, team_id: 117}
+          - {kalshi_abbrev: SEA, team_id: 136}
+    expect:
+      rows:
+        - ticker: KXMLBGAME-26AUG06HOUSEAG2-SEA
+          game_date: "2026-08-06"
+          game_number: 2
+          away_abbrev: HOU
+          home_abbrev: SEA
+          team_abbrev: SEA
+          side: home
+
+  - name: strips_the_start_time_when_the_ticker_is_spring_training
+    model: proc_kalshi__markets
+    given:
+      - input: source('kalshi', 'markets')
+        rows:
+          - {ticker: KXMLBSTGAME-26MAR011305HOUSEA-HOU, event_ticker: KXMLBSTGAME-26MAR011305HOUSEA}
+      - input: ref('kalshi_team_map')
+        rows:
+          - {kalshi_abbrev: HOU, team_id: 117}
+          - {kalshi_abbrev: SEA, team_id: 136}
+    expect:
+      rows:
+        - ticker: KXMLBSTGAME-26MAR011305HOUSEA-HOU
+          game_date: "2026-03-01"
+          game_number: 1
+          game_type: S
+          away_abbrev: HOU
+          home_abbrev: SEA
+          team_abbrev: HOU
+          side: away
