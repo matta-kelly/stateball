@@ -1,7 +1,7 @@
 ---
 type: spec
 description: "Run stateball's checks on GitHub for every pull request, and make main refuse a change that fails them. Reference for what the check set is, how it gets a Postgres without Kalshi, and how the change is checked."
-status: factory
+status: review
 ---
 ## Need
 
